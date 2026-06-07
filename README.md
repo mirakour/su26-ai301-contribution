@@ -8,6 +8,7 @@
 ## Phase I: Issue Selection
 
 **Issue:** [apache/superset #36189 — Percentage number formatting broken for very small numbers](https://github.com/apache/superset/issues/36189)
+
 **Repository:** [https://github.com/apache/superset](https://github.com/apache/superset)
 
 **Problem Summary:** In Apache Superset's table visualization, applying D3 percentage formatting (e.g., `.8%`) to very small non-zero numbers (e.g., `-0.00001229`) fails silently — the raw number is returned instead of the formatted percentage. When any column contains very small values, formatting breaks for all rows in that column, including larger values that would otherwise format correctly. This affects Superset v5.0.0 and is confirmed reproducible by multiple users.
