@@ -52,7 +52,7 @@ In `formatValue.ts`, the condition for using the small-number formatter is:
 isNumber && typeof value === 'number' && Math.abs(value) < 1
 ```
 
-Percentage columns store values as decimals (0–1), so this condition is always true for them. The intended percentage formatter (e.g. `.8%`) is never called.
+Percentage columns store values as decimals (0 to 1), so this condition is always true for them. The intended percentage formatter (e.g. `.8%`) is never called.
 
 ### Solution Plan
 
@@ -81,7 +81,7 @@ Test coverage includes:
 
 ### Pull Request
 
-PR submitted to apache/superset from branch `fix/percentage-small-number-formatting`
+[apache/superset #41098](https://github.com/apache/superset/pull/41098) — fix(table): use percentage formatter for small values in percentage columns
 
 ### Key Files Changed
 
