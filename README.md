@@ -2,7 +2,7 @@
 
 **Student:** Kourtney Miranda (@mirakour)
 **Course:** CodePath AI301 — Summer 2026
-**Status:** Phase III Complete
+**Status:** Phase IV Complete
 
 ---
 
@@ -33,30 +33,13 @@ The `formatColumnValue` function routes numeric values through a small number fo
 
 Branch: [fix/percentage-small-number-formatting](https://github.com/mirakour/superset/tree/fix/percentage-small-number-formatting)
 
-### Reproduction Steps
-
-1. Clone apache/superset and set up the frontend dev environment
-2. Start the dev server: `cd superset-frontend && npm run dev`
-3. Create or open a dashboard with a Table chart
-4. Add a numeric column with a D3 format of `.8%`
-5. Ensure the column contains very small values like `-0.00001229`
-6. Observe: the cell displays `-0.00001229` instead of `-0.00122900%`
-7. Open `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.ts`
-8. Confirm: `Math.abs(value) < 1` routes percentage values to the wrong formatter
-
 ### Root Cause
 
-In `formatValue.ts`, the condition for using the small-number formatter is:
-
-```
-isNumber && typeof value === 'number' && Math.abs(value) < 1
-```
-
-Percentage columns store values as decimals (0 to 1), so this condition is always true for them. The intended percentage formatter (e.g. `.8%`) is never called.
+In `formatValue.ts`, the condition `isNumber && typeof value === 'number' && Math.abs(value) < 1` always fires for percentage columns since their values are stored as decimals (0–1). The intended percentage formatter is never called.
 
 ### Solution Plan
 
-Add an `isPercentageFormat()` helper that detects D3 format strings ending with `%`, and add `!isPercentageFormat(config.d3NumberFormat)` to the condition so percentage columns bypass the small-number formatter.
+Add an `isPercentageFormat()` helper to detect D3 format strings ending with `%`, and guard the small-number path with `!isPercentageFormat(config.d3NumberFormat)`.
 
 ---
 
@@ -64,29 +47,42 @@ Add an `isPercentageFormat()` helper that detects D3 format strings ending with 
 
 ### Implementation
 
-Modified file: `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.ts`
-
-Added a helper function that checks if a D3 format string is a percentage format (ends with `%`). Updated the `useSmallNumberFormatter` condition to skip percentage columns, ensuring they always use their intended D3 formatter instead of being intercepted by the small-number path.
+Modified `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.ts` — added `isPercentageFormat()` helper and updated the `useSmallNumberFormatter` condition to skip percentage columns.
 
 ### Tests
 
-Created new test file: `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.test.ts`
-
-Test coverage includes:
-- Very small negative percentage values (the original bug case from issue #36189)
-- Very small positive percentage values
-- Normal percentage values that should format correctly
-- Non-percentage small numbers that should still use the small-number formatter
+Created `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.test.ts` with coverage for:
+- Very small negative and positive percentage values (the original bug)
+- Normal percentage values
+- Non-percentage small numbers (should still use small-number formatter)
 - Edge cases: null and undefined values
+
+---
+
+## Phase IV — Submit & Iterate (Week 4)
 
 ### Pull Request
 
 [apache/superset #41098](https://github.com/apache/superset/pull/41098) — fix(table): use percentage formatter for small values in percentage columns
 
-### Key Files Changed
+### Outcome
 
-| File | Change |
-|------|--------|
-| `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.ts` | Added `isPercentageFormat()` helper and updated condition |
-| `superset-frontend/plugins/plugin-chart-table/src/utils/formatValue.test.ts` | New test file covering the bug fix and edge cases |
+PR was reviewed and closed by maintainer **rusackas** (Apache Superset core contributor). The issue had already been resolved in a separate PR ([#37980](https://github.com/apache/superset/pull/37980)), which closed the original issue before this contribution was submitted.
+
+Maintainer response: "Ahh, looks like this was already fixed by #37980, which closed #36189. I think we can close this one out. Thanks for the work @mirakour!"
+
+### Automated Review Feedback
+
+Two suggestions from the codeant-ai bot were flagged:
+1. The `isPercentageFormat()` helper only checks for `%` but D3 also has a `p` type for percentage formatting — extending detection to cover `.2p` style formats would make the fix more complete.
+2. The check only inspects `config.d3NumberFormat` but the effective formatter can also come from a datasource-level saved format — the fix may not cover that path.
+
+These are valid edge cases that would improve the fix in a real merge scenario.
+
+### What I Learned
+
+- Duplicate fixes happen in active open source projects — always check if an issue is truly open before starting work.
+- Even a closed PR provides real maintainer feedback and a real code review, which is valuable experience.
+- The fix itself was technically sound; the bot reviews identified genuine improvements worth noting.
+- Engaging with the codebase, writing tests, and opening a PR are the core skills — whether or not it merges.
 
