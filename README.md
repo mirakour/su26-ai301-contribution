@@ -5,83 +5,87 @@
 
 ---
 
-## Issue 1: apache/superset #36189 (Weeks 1–4)
+## Issue 1: apache/superset #36189 (Weeks 1–4) — Phase IV Complete
 
-D3 percentage formatting bug — fixed in formatValue.ts. PR #41098 submitted and closed (already fixed upstream in #37980). Full write-up in the sections below.
-
-**Status:** Phase IV Complete
+D3 percentage formatting bug in formatValue.ts. PR #41098 submitted and closed (already fixed upstream in #37980). Maintainer acknowledged the work. Documented outcome, learnings, and bot review feedback in README.
 
 ---
 
-## Phase I — Explore and Select (Week 1)
-
-**Issue:** [apache/superset #36189](https://github.com/apache/superset/issues/36189) — D3 percentage format breaks for very small negative numbers
-
-When a table column uses a D3 percentage format string like `.8%`, values that are very small (e.g. `-0.00001229`) are displayed as the raw number. Root cause: `Math.abs(value) < 1` in `formatValue.ts` always fires for decimal-stored percentage values, routing them to the wrong formatter.
-
----
-
-## Phase II — Reproduce and Plan (Week 2)
-
-Branch: [fix/percentage-small-number-formatting](https://github.com/mirakour/superset/tree/fix/percentage-small-number-formatting)
-
-Fix plan: Add `isPercentageFormat()` helper and guard the small-number path with `!isPercentageFormat(config.d3NumberFormat)`.
-
----
-
-## Phase III — Build and Test (Week 3)
-
-Implemented `isPercentageFormat()` in `formatValue.ts`. Created `formatValue.test.ts` with coverage for the bug scenario and edge cases.
-
-PR: [apache/superset #41098](https://github.com/apache/superset/pull/41098)
-
----
-
-## Phase IV — Submit & Iterate (Week 4)
-
-PR reviewed and closed by maintainer rusackas — issue already fixed in #37980. Maintainer said "Thanks for the work @mirakour!" Bot review flagged two valid edge cases (D3 `p` format type; datasource-level formatters). Documented outcome in README.
-
-**What I learned:** Check issue status carefully before starting. A closed PR still earns real maintainer interaction and code review experience.
-
----
-
-## Issue 2: apache/burr #607 (Week 5+)
-
-**Status:** Phase I — Explore and Select
+## Issue 2: apache/burr #607 (Weeks 5+)
 
 **Repository:** [apache/burr](https://github.com/apache/burr)
-**Issue:** [#607 — Streaming Event type hint should support union types](https://github.com/apache/burr/issues/607)
+**Issue:** [#607 — Streaming Event type hint should support union types](https://github.com/apache/burr/issues/36189)
+**Fix Branch:** [fix/stream-type-union-support](https://github.com/mirakour/burr/tree/fix/stream-type-union-support)
+
+---
+
+## Phase I — Explore and Select (Week 5)
 
 ### Understanding the Issue
 
-When using `@streaming_action.pydantic`, the `stream_type` parameter only accepts a single Pydantic model or `dict`. Passing a union of models (e.g. `MyModel1 | MyModel2`) causes a type error because the current annotation is:
-
-```python
-PartialType = Union[Type[pydantic.BaseModel], Type[dict]]
-```
-
-In Python 3.10+, `MyModel1 | MyModel2` creates a `types.UnionType` object, which is not covered by this annotation.
+The `stream_type` parameter in `@streaming_action.pydantic` accepts only a single Pydantic model or `dict`. Passing a union of models (e.g. `MyModel1 | MyModel2`) fails with a type error because the current annotation `PartialType = Union[Type[pydantic.BaseModel], Type[dict]]` does not include `types.UnionType` (Python 3.10+ union syntax).
 
 ### Codebase Research
 
-Two files need updating:
+Two files affected:
+- `burr/integrations/pydantic.py` — `PartialType` type alias and `_validate_and_extract_signature_types_streaming` signature
+- `burr/core/action.py` — `stream_type` parameter in `SingleStepStreamingAction.pydantic()`
 
-1. **`burr/integrations/pydantic.py`** — `PartialType` type alias and `_validate_and_extract_signature_types_streaming` function signature
-2. **`burr/core/action.py`** — `stream_type` parameter annotation in `SingleStepStreamingAction.pydantic()`
+---
+
+## Phase II — Reproduce and Plan (Week 6)
+
+### Reproduction
+
+With the unpatched code, the following raises a type error at the annotation level:
+
+```python
+from pydantic import BaseModel
+from burr.core import action
+
+class ModelA(BaseModel):
+    value: str
+
+class ModelB(BaseModel):
+    count: int
+
+@action.streaming_action.pydantic(
+    reads=[],
+    writes=[],
+    state_input_type=ModelA,
+    state_output_type=ModelA,
+    stream_type=ModelA | ModelB,  # type hint says this is invalid
+)
+def my_action(state):
+    ...
+```
+
+Type checkers (mypy, pyright) flag `stream_type=ModelA | ModelB` as invalid because `ModelA | ModelB` is `types.UnionType`, which is not in `Union[Type[BaseModel], Type[dict]]`.
+
+### Root Cause
+
+`PartialType = Union[Type[pydantic.BaseModel], Type[dict]]` in `burr/integrations/pydantic.py` does not include `types.UnionType`. In Python 3.10+, the `X | Y` syntax creates a `types.UnionType` object, which the current annotation rejects.
 
 ### Solution Plan
 
-Extend `PartialType` to also accept `types.UnionType` (Python 3.10+) with a version-compatible guard:
+Update `PartialType` with a version guard:
 
 ```python
 import sys
-import types as builtin_types
 
 if sys.version_info >= (3, 10):
-    PartialType = Union[Type[pydantic.BaseModel], Type[dict], builtin_types.UnionType]
+    PartialType = Union[Type[pydantic.BaseModel], Type[dict], types.UnionType]
 else:
     PartialType = Union[Type[pydantic.BaseModel], Type[dict]]
 ```
 
-Update both function signatures to use the expanded type, and ensure runtime validation handles union types gracefully.
+Also update `_validate_and_extract_signature_types_streaming` to use `Optional[PartialType]` instead of the inline union, and update `burr/core/action.py` similarly.
+### Implementation Status
+
+Fix implemented in `burr/integrations/pydantic.py` on branch [fix/stream-type-union-support](https://github.com/mirakour/burr/tree/fix/stream-type-union-support):
+- Added `import sys`
+- Updated `PartialType` with `sys.version_info >= (3, 10)` guard to include `types.UnionType`
+- Updated `_validate_and_extract_signature_types_streaming` signature to use `Optional[PartialType]`
+
+Next: update `burr/core/action.py` and write tests before opening PR.
 
