@@ -89,3 +89,34 @@ Fix implemented in `burr/integrations/pydantic.py` on branch [fix/stream-type-un
 
 Next: update `burr/core/action.py` and write tests before opening PR.
 
+
+
+## Phase III: Implement Fix & Write Tests
+
+**Branch:** [fix/stream-type-union-support](https://github.com/mirakour/burr/tree/fix/stream-type-union-support)
+
+### Changes Implemented
+
+**File 1: `burr/integrations/pydantic.py`** (already done in Phase II)
+- Added `import sys` to detect Python version at runtime
+- Added version guard for `PartialType`:
+  - Python 3.10+: `PartialType = Union[Type[pydantic.BaseModel], Type[dict], types.UnionType]`
+  - Python <3.10: `PartialType = Union[Type[pydantic.BaseModel], Type[dict]]` (original)
+- Updated `_validate_and_extract_signature_types_streaming` signature to use `Optional[PartialType]`
+
+**File 2: `burr/core/action.py`**
+- Updated the `stream_type` parameter annotation in `streaming_action.pydantic()` from `Union[Type["BaseModel"], Type[dict]]` to `Union[Type["BaseModel"], Type[dict], Any]` to reflect that union types are now accepted
+
+### Tests Added
+
+**File: `tests/integrations/test_burr_pydantic.py`**
+
+Added 3 regression tests for issue #607, all guarded with `@pytest.mark.skipif(sys.version_info < (3, 10), ...)`:
+
+1. `test_validate_streaming_signature_accepts_union_stream_type` — verifies `_validate_and_extract_signature_types_streaming` correctly accepts a `types.UnionType` stream_type and returns it unchanged
+2. `test_pydantic_streaming_action_accepts_union_stream_type` — verifies the `@pydantic_streaming_action` decorator succeeds without TypeError when given `stream_type=ModelA | ModelB`
+3. `test_streaming_action_pydantic_decorator_accepts_union_stream_type` — same check for the higher-level `@streaming_action.pydantic` decorator
+
+### Status
+
+Phase III complete. Fix branch is ready for PR to apache/burr.
