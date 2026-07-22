@@ -14,12 +14,20 @@ D3 percentage formatting bug in formatValue.ts. PR #41098 submitted and closed (
 ## Issue 2: apache/burr #607 (Weeks 5+)
 
 **Repository:** [apache/burr](https://github.com/apache/burr)
-**Issue:** [#607 — Streaming Event type hint should support union types](https://github.com/apache/burr/issues/36189)
+**Issue:** [#607 — Streaming Event type hint should support union types](https://github.com/apache/burr/issues/607)
 **Fix Branch:** [fix/stream-type-union-support](https://github.com/mirakour/burr/tree/fix/stream-type-union-support)
 
 ---
 
 ## Phase I — Explore and Select (Week 5)
+
+### Problem Summary
+
+The `stream_type` parameter in `@streaming_action.pydantic` only accepts a single Pydantic model or `dict`, but not union types like `ModelA | ModelB`. This matters because real-world streaming actions often need to yield different model types depending on the step, and the current restriction forces workarounds like wrapper models or `Any`. I chose this issue because it involves Python's type system and version compatibility (Python 3.10+ `types.UnionType`), which aligns with my learning goal of understanding how libraries handle generic type annotations safely across Python versions.
+
+### Why I Chose This Issue
+
+I chose burr #607 because it sits at the intersection of Python's evolving type system and a real usability gap in a production-grade library. The fix requires understanding `types.UnionType` (introduced in Python 3.10), `typing.Union`, and version guards — skills directly relevant to writing robust, version-compatible Python. It is also clearly scoped (two files, one type alias) and has a maintainer comment confirming the bug is real, making it a good fit for an open source contribution.
 
 ### Understanding the Issue
 
@@ -80,6 +88,7 @@ else:
 ```
 
 Also update `_validate_and_extract_signature_types_streaming` to use `Optional[PartialType]` instead of the inline union, and update `burr/core/action.py` similarly.
+
 ### Implementation Status
 
 Fix implemented in `burr/integrations/pydantic.py` on branch [fix/stream-type-union-support](https://github.com/mirakour/burr/tree/fix/stream-type-union-support):
@@ -88,8 +97,6 @@ Fix implemented in `burr/integrations/pydantic.py` on branch [fix/stream-type-un
 - Updated `_validate_and_extract_signature_types_streaming` signature to use `Optional[PartialType]`
 
 Next: update `burr/core/action.py` and write tests before opening PR.
-
-
 
 ## Phase III: Implement Fix & Write Tests
 
